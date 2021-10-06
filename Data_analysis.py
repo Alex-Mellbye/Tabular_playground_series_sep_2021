@@ -42,6 +42,7 @@ percent_2 = (round(percent_1, 1)).sort_values(ascending=False)
 missing_data = pd.concat([total, percent_2], axis=1, keys=['Total', 'percents'])
 missing_data.head(10)
 
+# OUT:
 #      Total  percents
 # f31   15678       1.6
 # f46   15633       1.6
@@ -55,7 +56,6 @@ missing_data.head(10)
 # f64   15578       1.6
 
 
-
 # Plotting NaNs - also making a dataframe out of the missing so that its slightly easier to plot them
 total_df = total.to_frame(name='missing')
 total_df['columns'] = total_df.index
@@ -66,7 +66,7 @@ plt.show()
 
 ######################## Applying imputation and standardisation ########################
 
-# As all the features are 'ints', we can impute such values to the missing as means, modes, etc. In data where there are a lot of outliers, the mode is preferred as its not 
+# As all the features are floats, we can impute such values to the missing as means, modes, etc. In data where there are a lot of outliers, the mode is preferred as its not 
 # sensitive to them, whereas the mean is better suited for data without outliers. In this dataset there are very few cases of outliers so I used the mean.
 
 # Imputation - here we can also use df.fillna(df.mean()), however I wanted to explore the SimpleImputer() function.
@@ -89,7 +89,10 @@ X_scaled = pd.DataFrame(X_scaled, columns = scaled_data.columns)
 X_scaled.insert(0, 'id', X_train_imp['id'])
 
 
-#################################### plots ################
+#################################### Visual EDA #####################
+
+# Here I plot the scaled and unscaled data against each other. As we can see, the unscaled data has a few features that are on a very different scale.
+# Scaling them helps alleviate this by making the data standardised.
 
 plt.boxplot(X_train_imp.iloc[:, 1:])
 plt.show()
@@ -106,11 +109,10 @@ max.plot(kind='bar')
 plt.show()
 
 
-
 ################################ Building models ################
 
-del X_train
-
+# Here I run an XGBoost model over the to different types of data - scaled and unscaled. Unsurprisingly, the results are almost identical as XGBoost is 
+# not sensitive to scale (ulike KNN for instance). 
 
 X_train_scaled, X_test_scaled, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42, shuffle=True)
 X_train_imp, X_test_imp, y_train2, y_test2 = train_test_split(X_train_imp, y, test_size=0.2, random_state=42, shuffle=True)
@@ -133,19 +135,26 @@ XGB_imputed_performance = [accuracy_score(y_test2, predictions_imp),
                       f1_score(y_test2, predictions_imp)]
 
 
+# Here I produce a table of the two models performance. As ew can tell, the results are near identical with an accuracy of 71,7% for both scaled and unscaled data.
 
 metrics = ["Accuracy", "AUC", "F1"]
-
 model_performance = pd.DataFrame({'XGB_imp':XGB_imputed_performance})
 model_performance["XGB_scaled"] = pd.DataFrame(XGB_scaled_performance)
 model_performance.index = metrics
 
 print(model_performance)
 
+# Out:
+#           XGB_imp  XGB_scaled
+# Accuracy  0.717560    0.717236
+# AUC       0.717321    0.716994
+# F1        0.697601    0.696973
 
 
+############################## Test data ###################################
 
-# Exploring the test data as well
+
+# Exploring the test data as well. The same issue as the training data, some amount of missing.
 
 print(test.shape)
 print(test.columns)
@@ -155,8 +164,6 @@ print(test.isnull().sum())
 print(test.nunique())
 print(test.dtypes)
 
-
-
 # Imputation
 my_imputer = SimpleImputer(strategy='mean')
 my_imputer.fit(test)
@@ -165,17 +172,23 @@ test_imputed = pd.DataFrame(test_imputed, columns = test.columns)
 print(test_imputed.isnull().sum())
 
 
-scalar = StandardScaler()
-scalar.fit(test_imputed)
-test_scaled = scalar.transform(test_imputed)
-test_scaled = pd.DataFrame(test_scaled, columns = test_imputed.columns)
+# As the difference between scaled and unscaled data made miniscule differences to the model`s performance, I skip the standardisation step and use the XGBoost model 
+# that as built on the unscaled data
 
-predictions = xgboost.predict_proba(test_scaled)[:,1]
+
+predictions = xgboost_imp.predict_proba(test_imputed)[:,1]
 
 subm = test[['id']]
 subm['claim'] = predictions
 
 print(subm.head())
+# Out:
+#      id     claim
+# 0  957919  0.361998
+# 1  957920  0.270093
+# 2  957921  0.383154
+# 3  957922  0.345694
+# 4  957923  0.271422
 
 
 
